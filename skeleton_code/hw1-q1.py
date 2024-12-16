@@ -3,11 +3,14 @@
 # Deep Learning Homework 1
 
 import argparse
+import time
 
-import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 
-import time
+matplotlib.use('Agg')  # Use non-interactive backend for headless environments
+
+import numpy as np
 import utils
 
 
@@ -46,8 +49,11 @@ class Perceptron(LinearModel):
         y_i (scalar): the gold label for that example
         other arguments are ignored
         """
-        raise NotImplementedError # Q1.1 (a)
 
+        y_hat = np.argmax(self.W.dot(x_i))
+        if y_hat != y_i:                        
+            self.W[y_i] += x_i            
+            self.W[y_hat] -= x_i
 
 class LogisticRegression(LinearModel):
     def update_weight(self, x_i, y_i, learning_rate=0.001, l2_penalty=0.0, **kwargs):
@@ -61,13 +67,20 @@ class LogisticRegression(LinearModel):
 
 class MLP(object):
     def __init__(self, n_classes, n_features, hidden_size):
-        # Initialize an MLP with a single hidden layer.
-        raise NotImplementedError # Q1.3 (a)
+        self.W1 = np.random.normal(0.1, 0.1, (hidden_size, n_features))
+        self.b1 = np.zeros(hidden_size)
+        self.W2 = np.random.normal(0.1, 0.1, (n_classes, hidden_size))
+        self.b2 = np.zeros(n_classes)
 
     def predict(self, X):
         # Compute the forward pass of the network. At prediction time, there is
         # no need to save the values of hidden nodes.
-        raise NotImplementedError # Q1.3 (a)
+        z1 = np.dot(self.W1, X.T) + self.b1[:, None]
+        h1 = np.maximum(0, z1)  
+        z2 = np.dot(self.W2, h1) + self.b2[:, None]  
+        y_hat = np.argmax(z2, axis=0)
+
+        return y_hat
 
     def evaluate(self, X, y):
         """
@@ -80,11 +93,55 @@ class MLP(object):
         n_possible = y.shape[0]
         return n_correct / n_possible
 
-    def train_epoch(self, X, y, learning_rate=0.001, **kwargs):
+    def train_epoch(self, X, Y, learning_rate=0.001, **kwargs):
         """
         Dont forget to return the loss of the epoch.
         """
-        raise NotImplementedError # Q1.3 (a)
+        total_loss = 0
+        for x, y in zip(X, Y):
+            # encode class into a one hot vector
+            one_hot_y = np.zeros(6)
+            one_hot_y[y] = 1
+
+            # ===== FORWARD PASS =====
+            z1 = np.dot(self.W1, x) + self.b1  # hidden layer pre-activation (hidden_size,)            
+            h1 = np.maximum(0, z1) # ReLU activation (hidden_size,)            
+            
+            z2 = np.dot(self.W2, h1) + self.b2  # output layer pre-activation (n_classes,)                        
+            z2 -= np.max(z2) # subtract max for numerical stability to be able to do exp
+
+            p = np.exp(z2) / sum(np.exp(z2))            
+            p = np.clip(p, 1e-15, 1 - 1e-15) # clip probabilities to avoid 0
+
+            # Cross-entropy loss
+            loss = -one_hot_y.dot(np.log(p)) 
+            total_loss += loss
+
+            # ===== BACKWARD PASS =====
+            # gradient of loss wrt z2 (output layer pre-activation)
+            grad_z2 = p - one_hot_y  # (n_classes,)
+
+            # gradient wrt W2 and b2 (hidden-to-output weights and biases)
+            grad_W2 = np.outer(grad_z2, h1)  # (n_classes, hidden_size)
+            grad_b2 = grad_z2  # (n_classes,)
+
+            # gradient wrt hidden layer output (h1)
+            grad_h1 = np.dot(self.W2.T, grad_z2)  # (hidden_size,)
+
+            # gradient wrt hidden layer pre-activation (z1)
+            grad_z1 = grad_h1 * (z1 > 0)  # ReLU derivative: 1 if z1 > 0, else 0
+
+            # gradient wrt W1 and b1 (input-to-hidden weights and biases)
+            grad_W1 = np.outer(grad_z1, x)  # (hidden_size, n_features)
+            grad_b1 = grad_z1  # (hidden_size,)
+
+            # ===== PARAMETER UPDATES =====
+            self.W2 -= learning_rate * grad_W2
+            self.b2 -= learning_rate * grad_b2
+            self.W1 -= learning_rate * grad_W1
+            self.b1 -= learning_rate * grad_b1    
+
+        return total_loss / X.shape[0]
 
 
 def plot(epochs, train_accs, val_accs, filename=None):
@@ -98,6 +155,7 @@ def plot(epochs, train_accs, val_accs, filename=None):
     plt.show()
 
 def plot_loss(epochs, loss, filename=None):
+    plt.figure()  # Start a new figure
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.plot(epochs, loss, label='train')
@@ -108,6 +166,7 @@ def plot_loss(epochs, loss, filename=None):
 
 
 def plot_w_norm(epochs, w_norms, filename=None):
+    plt.figure()  # Start a new figure
     plt.xlabel('Epoch')
     plt.ylabel('W Norm')
     plt.plot(epochs, w_norms, label='train')
@@ -132,7 +191,7 @@ def main():
                         help="""Learning rate for parameter updates (needed for
                         logistic regression and MLP, but not perceptron)""")
     parser.add_argument('-l2_penalty', type=float, default=0.0,)
-    parser.add_argument('-data_path', type=str, default='intel_landscapes.npz',)
+    parser.add_argument('-data_path', type=str, default='intel_landscapes.v2.npz',)
     opt = parser.parse_args()
 
     utils.configure_seed(seed=42)
@@ -220,4 +279,9 @@ def main():
 
 
 if __name__ == '__main__':
+    # a = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]])
+    # a = np.array([1, 2, 3, 4])
+    # print(a.shape)
+    # print(np.shape(a[:, None]))
+    # print(a[:, None])
     main()

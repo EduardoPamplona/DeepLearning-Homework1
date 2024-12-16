@@ -3,14 +3,13 @@
 # Deep Learning Homework 1
 
 import argparse
+import time
 
 import torch
-from torch.utils.data import DataLoader
 import torch.nn as nn
-from matplotlib import pyplot as plt
-
-import time
 import utils
+from matplotlib import pyplot as plt
+from torch.utils.data import DataLoader
 
 
 class LogisticRegression(nn.Module):
@@ -64,8 +63,31 @@ class FeedforwardNetwork(nn.Module):
         includes modules for several activation functions and dropout as well.
         """
         super().__init__()
-        # Implement me!
-        raise NotImplementedError
+        
+        # List to hold all layers
+        self.layers = nn.ModuleList()
+
+        # Input layer (input -> first hidden layer)
+        self.layers.append(nn.Linear(n_features, hidden_size))
+
+        # Add hidden layers (hidden -> hidden)
+        for _ in range(layers - 1):
+            self.layers.append(nn.Linear(hidden_size, hidden_size))
+
+        # Output layer (last hidden -> output)
+        self.output_layer = nn.Linear(hidden_size, n_classes)
+
+        # Activation function
+        if activation_type == 'relu':
+            self.activation = nn.ReLU()
+        elif activation_type == 'tanh':
+            self.activation = nn.Tanh()
+        else:
+            raise ValueError("Unsupported activation type. Use 'relu' or 'tanh'.")
+
+        # Dropout
+        self.dropout = nn.Dropout(dropout)
+
 
     def forward(self, x, **kwargs):
         """
@@ -75,7 +97,16 @@ class FeedforwardNetwork(nn.Module):
         the output logits from x. This will include using various hidden
         layers, pointwise nonlinear functions, and dropout.
         """
-        raise NotImplementedError
+        # Forward pass through hidden layers
+        for layer in self.layers:
+            x = layer(x)            # Linear transformation
+            x = self.activation(x)  # Activation function
+            x = self.dropout(x)     # Dropout for regularization
+
+        # Output layer (no activation function here, logits are raw outputs)
+        logits = self.output_layer(x)
+
+        return logits
 
 
 def train_batch(X, y, model, optimizer, criterion, **kwargs):
@@ -96,7 +127,24 @@ def train_batch(X, y, model, optimizer, criterion, **kwargs):
     This function should return the loss (tip: call loss.item()) to get the
     loss as a numerical value that is not part of the computation graph.
     """
-    raise NotImplementedError
+    
+    # Reset gradients
+    optimizer.zero_grad()
+
+    # Forward pass: compute model output logits
+    logits = model(X)  # Forward pass through the model
+
+    # Compute the loss
+    loss = criterion(logits, y)
+
+    # Backward pass: compute gradients
+    loss.backward()
+
+    # Update parameters using optimizer
+    optimizer.step()
+
+    # Return the loss as a scalar (detach from computation graph)
+    return loss.item()
 
 
 def predict(model, X):
@@ -159,7 +207,7 @@ def main():
                         choices=['tanh', 'relu'], default='relu')
     parser.add_argument('-optimizer',
                         choices=['sgd', 'adam'], default='sgd')
-    parser.add_argument('-data_path', type=str, default='intel_landscapes.npz',)
+    parser.add_argument('-data_path', type=str, default='intel_landscapes.v2.npz',)
     opt = parser.parse_args()
 
     utils.configure_seed(seed=42)
