@@ -26,8 +26,9 @@ class LogisticRegression(nn.Module):
         https://pytorch.org/docs/stable/nn.html
         """
         super().__init__()
-        # In a pytorch module, the declarations of layers needs to come after
-        # the super __init__ line, otherwise the magic doesn't work.
+
+        self.W = nn.Parameter(torch.randn(n_features, n_classes))  # Weight matrix
+        self.b = nn.Parameter(torch.zeros(n_classes))  # Bias vector
 
     def forward(self, x, **kwargs):
         """
@@ -43,7 +44,8 @@ class LogisticRegression(nn.Module):
         forward pass -- this is enough for it to figure out how to do the
         backward pass.
         """
-        raise NotImplementedError
+        logits = torch.matmul(x, self.W) + self.b
+        return logits
 
 
 class FeedforwardNetwork(nn.Module):
@@ -256,6 +258,8 @@ def main():
 
     print('initial val acc: {:.4f}'.format(evaluate(model, dev_X, dev_y, criterion)[1]))
 
+    best_val_acc = 0.0
+
     for ii in epochs:
         print('Training epoch {}'.format(ii))
         epoch_train_losses = []
@@ -266,6 +270,9 @@ def main():
 
         epoch_train_loss = torch.tensor(epoch_train_losses).mean().item()
         val_loss, val_acc = evaluate(model, dev_X, dev_y, criterion)
+
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
 
         print('train loss: {:.4f} | val loss: {:.4f} | val acc: {:.4f}'.format(
             epoch_train_loss, val_loss, val_acc
@@ -282,6 +289,9 @@ def main():
 
     _, test_acc = evaluate(model, test_X, test_y, criterion)
     print('Final test acc: {:.4f}'.format(test_acc))
+
+    print('Final validation acc: {:.4f}'.format(val_acc))
+    print(f'Highest validation accuracy: {best_val_acc:.4f}')
 
     # plot
     if opt.model == "logistic_regression":

@@ -62,7 +62,17 @@ class LogisticRegression(LinearModel):
         y_i: the gold label for that example
         learning_rate (float): keep it at the default value for your plots
         """
-        raise NotImplementedError # Q1.2 (a,b)
+        scores = np.dot(self.W, x_i)
+        probabilities = np.exp(scores) / np.sum(np.exp(scores))
+
+        one_hot_y = np.zeros(self.W.shape[0])
+        one_hot_y[y_i] = 1
+
+        gradient = np.outer(probabilities - one_hot_y, x_i)
+
+        gradient += 2 * l2_penalty * self.W
+
+        self.W -= learning_rate * gradient
 
 
 class MLP(object):
